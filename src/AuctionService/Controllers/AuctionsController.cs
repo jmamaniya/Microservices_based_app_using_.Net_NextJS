@@ -1,4 +1,5 @@
 using AutoMapper;
+using AutoMapper.QueryableExtensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,14 +17,21 @@ public class AuctionsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<AuctionDto>>> GetAllAuctions()
+    public async Task<ActionResult<List<AuctionDto>>> GetAllAuctions(string date)
     {
-        var auctions = await _context.Auctions
-        .Include(x => x.Item)
-        .OrderBy(x => x.Item.Make)
-        .ToListAsync();
+        var query = _context.Auctions.OrderBy(x => x.Item.Make).AsQueryable();
+        if (!string.IsNullOrEmpty(date))
+        {
+            query = query.Where(x => x.UpdateAt.CompareTo(DateTime.Parse(date).ToUniversalTime()) > 0);
+        }
 
-        return _mapper.Map<List<AuctionDto>>(auctions);
+        return await query.ProjectTo<AuctionDto>(_mapper.ConfigurationProvider).ToListAsync();
+        // var auctions = await _context.Auctions
+        // .Include(x => x.Item)
+        // .OrderBy(x => x.Item.Make)
+        // .ToListAsync();
+
+        // return _mapper.Map<List<AuctionDto>>(auctions);
     }
 
     [HttpGet("{id}")]
@@ -68,7 +76,7 @@ public class AuctionsController : ControllerBase
             return NotFound();
 
         // TODO: check seller == username
-
+        auction.AuctionEnd = DateTime.UtcNow.AddYears(1);
         auction.Item.Make = updateAuctionDto.Make ?? auction.Item.Make;
 
         auction.Item.Model = updateAuctionDto.Model ?? auction.Item.Model;
